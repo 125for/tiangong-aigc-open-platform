@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:accounttest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+tg:
+  jwt:
+    secret: unit-test-jwt-secret-key-32-bytes-ok!!!
+  aes-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  internal-token: test-internal-token

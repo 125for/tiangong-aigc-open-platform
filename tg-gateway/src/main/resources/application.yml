@@ -1,0 +1,66 @@
+server:
+  port: 8080
+  shutdown: graceful
+spring:
+  application:
+    name: tg-gateway
+  profiles:
+    default: local
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: account-route
+              uri: ${TG_ACCOUNT_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/apps/**
+            - id: billing-route
+              uri: ${TG_BILLING_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/v1/plans/**,/api/v1/orders/**,/api/v1/payments/**,/api/v1/credits/**,/api/v1/ledgers/**
+            - id: task-route
+              uri: ${TG_TASK_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/tasks/**,/api/v1/webhooks/**
+          httpclient:
+            connect-timeout: 1000
+            response-timeout: 10s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  health:
+    redis:
+      enabled: false   # local 无 Redis；docker profile 下恢复
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [trace:%X{traceId:-}] %logger{24} - %msg%n"
+  level:
+    root: INFO
+tg:
+  jwt:
+    secret: ${TG_JWT_SECRET:tiangong-dev-only-jwt-secret-key-32bytes!}
+  internal-token: ${TG_INTERNAL_TOKEN:dev-internal-token}
+  ratelimit:
+    enabled: ${TG_RATELIMIT_ENABLED:true}
+    ip-per-min: ${TG_RATELIMIT_IP_PER_MIN:120}
+  dep:
+    account-base-url: ${TG_ACCOUNT_URL:http://localhost:8081}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+management:
+  health:
+    redis:
+      enabled: true

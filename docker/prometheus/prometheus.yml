@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: tg-gateway
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ["gateway:8080"] }]
+  - job_name: tg-account
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ["account:8081"] }]
+  - job_name: tg-billing
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ["billing:8082"] }]
+  - job_name: tg-task
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ["task:8083"] }]

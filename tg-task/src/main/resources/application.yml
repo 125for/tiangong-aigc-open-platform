@@ -1,0 +1,112 @@
+server:
+  port: 8083
+  shutdown: graceful
+spring:
+  application:
+    name: tg-task
+  profiles:
+    default: local
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  task:
+    scheduling:
+      pool:
+        size: 4   # 单线程调度器会被慢任务饿死其余定时任务（教训：见 docs/99）
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 3000
+resilience4j:
+  circuitbreaker:
+    instances:
+      billing-client:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 20s
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 10
+  timelimiter:
+    instances:
+      billing-client:
+        timeout-duration: 3s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+  health:
+    rabbit:
+      enabled: false   # local 无 RabbitMQ；docker profile 下恢复
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [trace:%X{traceId:-}] %logger{24} - %msg%n"
+tg:
+  jwt:
+    secret: ${TG_JWT_SECRET:tiangong-dev-only-jwt-secret-key-32bytes!}
+  internal-token: ${TG_INTERNAL_TOKEN:dev-internal-token}
+  dep:
+    billing-base-url: ${TG_BILLING_URL:http://localhost:8082}
+  task:
+    pricing:
+      TEXT_TO_IMAGE: ${TG_PRICE_T2I:10}
+      TEXT_TO_VIDEO: ${TG_PRICE_T2V:50}
+      TTS: ${TG_PRICE_TTS:5}
+    ttl-seconds: ${TG_TASK_TTL_SECONDS:120}
+    max-attempts: ${TG_TASK_MAX_ATTEMPTS:3}
+    sweep-interval-ms: ${TG_TASK_SWEEP_MS:5000}
+    outbox-interval-ms: 2000
+    webhook-interval-ms: 3000
+    engine:
+      latency-ms: ${TG_ENGINE_LATENCY_MS:2500}
+      fail-rate: ${TG_ENGINE_FAIL_RATE:0.1}
+    webhook:
+      max-attempts: 5
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:file:./data/task;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:mysql}:3306/tg_task?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${MYSQL_USER:tiangong}
+    password: ${MYSQL_PASSWORD:tiangong123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  rabbitmq:
+    host: ${RABBIT_HOST:rabbit}
+    port: 5672
+    username: ${RABBIT_USER:tiangong}
+    password: ${RABBIT_PASSWORD:tiangong123}
+management:
+  health:
+    rabbit:
+      enabled: true

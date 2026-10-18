@@ -1,0 +1,87 @@
+server:
+  port: 8082
+  shutdown: graceful
+spring:
+  application:
+    name: tg-billing
+  profiles:
+    default: local
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        config:
+          default:
+            connect-timeout: 1000
+            read-timeout: 3000
+resilience4j:
+  circuitbreaker:
+    instances:
+      account-client:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 10
+  timelimiter:
+    instances:
+      account-client:
+        timeout-duration: 3s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [trace:%X{traceId:-}] %logger{24} - %msg%n"
+tg:
+  jwt:
+    secret: ${TG_JWT_SECRET:tiangong-dev-only-jwt-secret-key-32bytes!}
+  internal-token: ${TG_INTERNAL_TOKEN:dev-internal-token}
+  channel-hmac-key: ${TG_CHANNEL_HMAC_KEY:dev-channel-hmac-key}
+  payments:
+    mock-enabled: ${TG_PAYMENTS_MOCK_ENABLED:true}
+  order:
+    ttl-minutes: 15
+    sweep-interval-ms: 20000
+  dep:
+    account-base-url: ${TG_ACCOUNT_URL:http://localhost:8081}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:file:./data/billing;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  h2:
+    console:
+      enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:mysql}:3306/tg_billing?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${MYSQL_USER:tiangong}
+    password: ${MYSQL_PASSWORD:tiangong123}
+    driver-class-name: com.mysql.cj.jdbc.Driver

@@ -1,0 +1,86 @@
+name: tiangong
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - mysql-data:/var/lib/mysql
+    ports: ["3306:3306"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  rabbit:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: tiangong
+      RABBITMQ_DEFAULT_PASS: tiangong123
+    ports: ["5672:5672", "15672:15672"]
+
+  account:
+    build: { context: .., dockerfile: docker/Dockerfile, args: { JAR: tg-account/target/tg-account-1.0.0.jar } }
+    environment: &svc-env
+      SPRING_PROFILES_ACTIVE: docker
+      MYSQL_HOST: mysql
+      MYSQL_USER: tiangong
+      MYSQL_PASSWORD: tiangong123
+      TG_JWT_SECRET: ${TG_JWT_SECRET:-change-me-in-prod-32-bytes-min!!}
+      TG_AES_KEY: ${TG_AES_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+      TG_INTERNAL_TOKEN: ${TG_INTERNAL_TOKEN:-dev-internal-token}
+      TG_ACCOUNT_URL: http://account:8081
+      TG_BILLING_URL: http://billing:8082
+      TG_TASK_URL: http://task:8083
+    ports: ["8081:8081"]
+    depends_on:
+      mysql: { condition: service_healthy }
+
+  billing:
+    build: { context: .., dockerfile: docker/Dockerfile, args: { JAR: tg-billing/target/tg-billing-1.0.0.jar } }
+    environment:
+      <<: *svc-env
+      TG_CHANNEL_HMAC_KEY: ${TG_CHANNEL_HMAC_KEY:-dev-channel-hmac-key}
+    ports: ["8082:8082"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      account: { condition: service_started }
+
+  task:
+    build: { context: .., dockerfile: docker/Dockerfile, args: { JAR: tg-task/target/tg-task-1.0.0.jar } }
+    environment:
+      <<: *svc-env
+      RABBIT_HOST: rabbit
+      RABBIT_USER: tiangong
+      RABBIT_PASSWORD: tiangong123
+    ports: ["8083:8083"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      rabbit: { condition: service_started }
+      billing: { condition: service_started }
+
+  gateway:
+    build: { context: .., dockerfile: docker/Dockerfile, args: { JAR: tg-gateway/target/tg-gateway-1.0.0.jar } }
+    environment:
+      <<: *svc-env
+      REDIS_HOST: redis
+    ports: ["8080:8080"]
+    depends_on:
+      account: { condition: service_started }
+      billing: { condition: service_started }
+      task: { condition: service_started }
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+volumes:
+  mysql-data:

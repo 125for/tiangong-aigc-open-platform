@@ -1,0 +1,11 @@
+target/
+logs/
+data/
+run/
+*.log
+*.mv.db
+*.trace.db
+.idea/
+*.iml
+.vscode/
+.DS_Store
